@@ -26,10 +26,24 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const download = request.nextUrl.searchParams.get('download');
     if (download) {
-      return new NextResponse(file.content, {
+      // Force a real file download (not inline markdown preview).
+      // Sanitize filename for Content-Disposition header safety.
+      const rawName = String(file.name || 'note.md');
+      const safeName =
+        rawName
+          .replace(/[\r\n"]/g, '')
+          .replace(/[\\/:*?<>|]+/g, '-')
+          .trim() || 'note.md';
+      const asciiName = safeName.replace(/[^\x20-\x7E]/g, '_') || 'note.md';
+      const utf8Name = encodeURIComponent(safeName);
+
+      return new NextResponse(file.content ?? '', {
+        status: 200,
         headers: {
           'Content-Type': 'text/markdown; charset=utf-8',
-          'Content-Disposition': `attachment; filename="${file.name}"`,
+          'Content-Disposition': `attachment; filename="${asciiName}"; filename*=UTF-8''${utf8Name}`,
+          'Cache-Control': 'private, no-store',
+          'X-Content-Type-Options': 'nosniff',
         },
       });
     }

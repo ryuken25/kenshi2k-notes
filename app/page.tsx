@@ -148,10 +148,48 @@ export default function Home() {
     e.target.value = '';
   }
 
-  function handleDownload() {
+  async function handleDownload() {
     if (!selectedFileId) return;
     const numericId = selectedFileId.replace('file-', '');
-    window.open(`/api/files/${numericId}?download=1`, '_blank');
+
+    try {
+      // Prefer fetch+blob so cookies stay on same-origin request and
+      // browsers reliably save a file instead of opening a blank tab.
+      const res = await fetch(`/api/files/${numericId}?download=1`, {
+        method: 'GET',
+        credentials: 'same-origin',
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || `Download failed (${res.status})`);
+        return;
+      }
+
+      const blob = await res.blob();
+      const cd = res.headers.get('Content-Disposition') || '';
+      const star = cd.match(/filename\*=UTF-8''([^;]+)/i);
+      const plain = cd.match(/filename=\"?([^\";]+)\"?/i);
+      let filename =
+        (star?.[1] ? decodeURIComponent(star[1]) : null) ||
+        plain?.[1] ||
+        selectedFile?.name ||
+        'note.md';
+      filename = filename.replace(/^["']|["']$/g, '').trim() || 'note.md';
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+    } catch (err) {
+      console.error('Download error:', err);
+      alert('Download failed. Coba lagi.');
+    }
   }
 
   async function handleLogout() {
