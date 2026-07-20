@@ -52,6 +52,7 @@ export default function Home() {
   const [isEditing, setIsEditing] = useState(false);
   const [draftContent, setDraftContent] = useState('');
   const [saving, setSaving] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const loadTree = useCallback(async () => {
     const res = await fetch('/api/tree');
@@ -149,8 +150,9 @@ export default function Home() {
   }
 
   async function handleDownload() {
-    if (!selectedFileId) return;
+    if (!selectedFileId || downloading) return;
     const numericId = selectedFileId.replace('file-', '');
+    setDownloading(true);
 
     try {
       // Prefer fetch+blob so cookies stay on same-origin request and
@@ -158,6 +160,8 @@ export default function Home() {
       const res = await fetch(`/api/files/${numericId}?download=1`, {
         method: 'GET',
         credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { Accept: 'application/octet-stream' },
       });
 
       if (!res.ok) {
@@ -166,7 +170,9 @@ export default function Home() {
         return;
       }
 
-      const blob = await res.blob();
+      const buffer = await res.arrayBuffer();
+      // Force non-previewable MIME even if a proxy rewrote Content-Type.
+      const blob = new Blob([buffer], { type: 'application/octet-stream' });
       const cd = res.headers.get('Content-Disposition') || '';
       const star = cd.match(/filename\*=UTF-8''([^;]+)/i);
       const plain = cd.match(/filename=\"?([^\";]+)\"?/i);
@@ -175,20 +181,32 @@ export default function Home() {
         plain?.[1] ||
         selectedFile?.name ||
         'note.md';
-      filename = filename.replace(/^["']|["']$/g, '').trim() || 'note.md';
+      filename = filename.replace(/^[\"']|[\"']$/g, '').trim() || 'note.md';
+      if (!/\.[A-Za-z0-9]{1,8}$/.test(filename)) {
+        filename = `${filename}.md`;
+      }
 
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = filename;
+      a.setAttribute('download', filename);
       a.rel = 'noopener';
+      a.style.display = 'none';
       document.body.appendChild(a);
       a.click();
       a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1500);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
     } catch (err) {
       console.error('Download error:', err);
-      alert('Download failed. Coba lagi.');
+      // Last-resort fallback for stubborn webviews.
+      try {
+        window.location.assign(`/api/files/${numericId}?download=1`);
+      } catch {
+        alert('Download failed. Coba lagi.');
+      }
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -408,9 +426,10 @@ export default function Home() {
                 )}
                 <button
                   onClick={handleDownload}
-                  className="flex items-center gap-1.5 rounded-md bg-[#7f6df2] px-3 py-1.5 text-xs font-medium text-white transition hover:bg-[#6c5ce0]"
+                  disabled={downloading}
+                  className="flex items-center gap-1.5 rounded-md bg-[#7f6df2] px-3 py-1.5 text-xs font-medium text-white transition hover:bg-[#6c5ce0] disabled:opacity-50"
                 >
-                  <Download size={13} /> Download
+                  <Download size={13} /> {downloading ? 'Downloading…' : 'Download'}
                 </button>
               </>
             )}

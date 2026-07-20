@@ -29,18 +29,28 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       // Force a real file download (not inline markdown preview).
       // Sanitize filename for Content-Disposition header safety.
       const rawName = String(file.name || 'note.md');
-      const safeName =
+      let safeName =
         rawName
           .replace(/[\r\n"]/g, '')
           .replace(/[\\/:*?<>|]+/g, '-')
           .trim() || 'note.md';
+      // Always give browsers a file extension so they don't treat it as
+      // a navigable markdown document.
+      if (!/\.[A-Za-z0-9]{1,8}$/.test(safeName)) {
+        safeName = `${safeName}.md`;
+      }
       const asciiName = safeName.replace(/[^\x20-\x7E]/g, '_') || 'note.md';
       const utf8Name = encodeURIComponent(safeName);
+      const body = typeof file.content === 'string' ? file.content : '';
+      const bytes = new TextEncoder().encode(body);
 
-      return new NextResponse(file.content ?? '', {
+      return new NextResponse(bytes, {
         status: 200,
         headers: {
-          'Content-Type': 'text/markdown; charset=utf-8',
+          // octet-stream beats text/markdown for "Save As" behavior across
+          // desktop + mobile + in-app browsers (Telegram/Safari/Chrome).
+          'Content-Type': 'application/octet-stream',
+          'Content-Length': String(bytes.byteLength),
           'Content-Disposition': `attachment; filename="${asciiName}"; filename*=UTF-8''${utf8Name}`,
           'Cache-Control': 'private, no-store',
           'X-Content-Type-Options': 'nosniff',
