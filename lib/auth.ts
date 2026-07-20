@@ -10,7 +10,7 @@ if (!JWT_SECRET) {
 export interface JwtPayload {
   id: number;
   username: string;
-  role: 'super_admin' | 'user';
+  role: 'super_admin' | 'editor' | 'user';
 }
 
 export function signToken(payload: JwtPayload): string {

@@ -1,51 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
-import { getSession } from '@/lib/session';
+import { canViewFolder, canWriteFolder } from '@/lib/access';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
-/**
- * Checks whether the current session is allowed to access a file's folder.
- * super_admin always passes. Regular users need a folder_permissions row
- * for the file's folder or any of its ancestor folders.
- */
-async function canAccessFile(fileFolderId: number | null): Promise<boolean> {
-  const session = await getSession();
-  if (!session) return false;
-  if (session.role === 'super_admin') return true;
-  if (fileFolderId === null) return false; // root-level files are admin-only
-
-  // Walk up the folder ancestry checking for a granted permission.
-  return walkFolderAncestry(session.id, fileFolderId);
-}
-
-async function getParentFolderId(folderId: number): Promise<number | null> {
-  const res = await pool.query('SELECT parent_id FROM folders WHERE id = $1', [
-    folderId,
-  ]);
-  const row = res.rows[0] as { parent_id: number | null } | undefined;
-  return row ? row.parent_id : null;
-}
-
-async function walkFolderAncestry(
-  userId: number,
-  startFolderId: number,
-  depth = 0
-): Promise<boolean> {
-  if (depth > 50) return false; // guard against cycles
-
-  const permRes = await pool.query(
-    'SELECT 1 FROM folder_permissions WHERE user_id = $1 AND folder_id = $2',
-    [userId, startFolderId]
-  );
-  if (permRes.rows.length > 0) return true;
-
-  const parentId = await getParentFolderId(startFolderId);
-  if (parentId === null) return false;
-  return walkFolderAncestry(userId, parentId, depth + 1);
-}
-
 // GET: fetch a single file's content (for viewer + download).
+// All roles (user/editor/super_admin) can view/download within granted folders.
 export async function GET(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
 
@@ -60,7 +20,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 });
     }
 
-    if (!(await canAccessFile(file.folder_id))) {
+    if (!(await canViewFolder(file.folder_id))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -82,6 +42,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 }
 
 // PUT: update a file's content (in-app editing).
+// Only super_admin and editor can write; plain 'user' is read-only.
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
 
@@ -94,7 +55,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (!existing) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 });
     }
-    if (!(await canAccessFile(existing.folder_id))) {
+    if (!(await canWriteFolder(existing.folder_id))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -117,7 +78,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// DELETE: remove a file (used by admin/user file management).
+// DELETE: remove a file. Only super_admin and editor can delete.
 export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
 
@@ -130,7 +91,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
     if (!existing) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 });
     }
-    if (!(await canAccessFile(existing.folder_id))) {
+    if (!(await canWriteFolder(existing.folder_id))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

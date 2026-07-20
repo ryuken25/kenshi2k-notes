@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { canWriteFolder } from '@/lib/access';
 
 // POST: upload a new .md file (multipart form-data with field "file",
-// optional "folderId"). Content is stored as raw markdown text in Neon.
+// optional "folderId"). super_admin and editor only — plain 'user' is
+// view/download only. editor additionally needs write access to the
+// target folder (or root, which is super_admin only).
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -17,6 +20,11 @@ export async function POST(request: NextRequest) {
         { error: 'Only .md files are allowed' },
         { status: 400 }
       );
+    }
+
+    const targetFolderId = folderId ? Number(folderId) : null;
+    if (!(await canWriteFolder(targetFolderId))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const content = await file.text();

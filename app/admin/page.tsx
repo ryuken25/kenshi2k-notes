@@ -126,7 +126,9 @@ export default function AdminPage() {
     );
   }
 
-  const regularUsers = users.filter((u) => u.role === 'user');
+  const regularUsers = users.filter(
+    (u) => u.role === 'user' || u.role === 'editor'
+  );
   const permsForUser = (userId: number) =>
     permissions.filter((p) => p.user_id === userId);
 
@@ -171,7 +173,8 @@ export default function AdminPage() {
               onChange={(e) => setRole(e.target.value)}
               className="w-full rounded-md border border-[#363636] bg-[#1e1e1e] px-3 py-2 text-sm text-[#dcddde] outline-none focus:border-[#7f6df2]"
             >
-              <option value="user">user</option>
+              <option value="user">user (view + download only)</option>
+              <option value="editor">editor (view + upload + edit)</option>
               <option value="super_admin">super_admin</option>
             </select>
             {error && <p className="text-sm text-red-400">{error}</p>}
@@ -283,7 +286,9 @@ export default function AdminPage() {
                     className={`rounded px-2 py-0.5 text-xs ${
                       u.role === 'super_admin'
                         ? 'bg-[#7f6df2]/20 text-[#a89bfa]'
-                        : 'bg-[#2a2a2a] text-[#b3b3b3]'
+                        : u.role === 'editor'
+                          ? 'bg-[#2f855a]/20 text-[#68d391]'
+                          : 'bg-[#2a2a2a] text-[#b3b3b3]'
                     }`}
                   >
                     {u.role}

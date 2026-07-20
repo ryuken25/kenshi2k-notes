@@ -24,7 +24,7 @@ import GraphView from '@/components/GraphView';
 interface Me {
   id: number;
   username: string;
-  role: 'super_admin' | 'user';
+  role: 'super_admin' | 'editor' | 'user';
 }
 
 type ViewMode = 'files' | 'graph' | 'daily';
@@ -210,6 +210,8 @@ export default function Home() {
     );
   }
 
+  const canWrite = me?.role === 'super_admin' || me?.role === 'editor';
+
   const isDark = theme === 'dark';
   const bg = isDark ? 'bg-[#1e1e1e]' : 'bg-[#ffffff]';
   const sidebarBg = isDark ? 'bg-[#181818]' : 'bg-[#f5f5f5]';
@@ -232,20 +234,24 @@ export default function Home() {
 
         {/* Actions */}
         <div className={`flex items-center gap-1 border-b ${border} px-2 py-2`}>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            title="Upload .md file"
-            className={`flex items-center gap-1 rounded px-2 py-1 text-xs ${textSecondary} ${hoverBg}`}
-          >
-            <Upload size={13} /> Upload
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".md"
-            className="hidden"
-            onChange={handleUpload}
-          />
+          {canWrite && (
+            <>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                title="Upload .md file"
+                className={`flex items-center gap-1 rounded px-2 py-1 text-xs ${textSecondary} ${hoverBg}`}
+              >
+                <Upload size={13} /> Upload
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".md"
+                className="hidden"
+                onChange={handleUpload}
+              />
+            </>
+          )}
           {me?.role === 'super_admin' && (
             <button
               onClick={() => router.push('/admin')}
@@ -350,16 +356,18 @@ export default function Home() {
           <div className="flex items-center gap-2">
             {viewMode === 'files' && selectedFile && !isEditing && (
               <>
-                <button
-                  onClick={handleStartEdit}
-                  className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition ${
-                    isDark
-                      ? 'border-[#363636] text-[#dcddde] hover:bg-[#2a2d2e]'
-                      : 'border-[#d4d4d4] text-[#1a1a1a] hover:bg-[#e8e8e8]'
-                  }`}
-                >
-                  <Pencil size={13} /> Edit
-                </button>
+                {canWrite && (
+                  <button
+                    onClick={handleStartEdit}
+                    className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition ${
+                      isDark
+                        ? 'border-[#363636] text-[#dcddde] hover:bg-[#2a2d2e]'
+                        : 'border-[#d4d4d4] text-[#1a1a1a] hover:bg-[#e8e8e8]'
+                    }`}
+                  >
+                    <Pencil size={13} /> Edit
+                  </button>
+                )}
                 <button
                   onClick={handleDownload}
                   className="flex items-center gap-1.5 rounded-md bg-[#7f6df2] px-3 py-1.5 text-xs font-medium text-white transition hover:bg-[#6c5ce0]"

@@ -27,7 +27,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const finalRole = role === 'super_admin' ? 'super_admin' : 'user';
+    const finalRole =
+      role === 'super_admin' || role === 'editor' ? role : 'user';
     const hashed = await hashPassword(password);
 
     const result = await pool.query(
