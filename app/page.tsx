@@ -16,6 +16,9 @@ import {
   Pencil,
   Save,
   X as XIcon,
+  Menu,
+  PanelLeftClose,
+  PanelLeft,
 } from 'lucide-react';
 import FolderTree, { TreeNode } from '@/components/FolderTree';
 import MarkdownViewer from '@/components/MarkdownViewer';
@@ -53,6 +56,9 @@ export default function Home() {
   const [draftContent, setDraftContent] = useState('');
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  // Sidebar open/close only — visual style unchanged when open
+  const [sidebarOpen, setSidebarOpen] = useState(false); // mobile drawer
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // desktop collapse
 
   const loadTree = useCallback(async () => {
     const res = await fetch('/api/tree');
@@ -80,6 +86,7 @@ export default function Home() {
     setSelectedFileId(fileId);
     setViewMode('files');
     setIsEditing(false);
+    setSidebarOpen(false); // close mobile drawer after pick
     const numericId = fileId.replace('file-', '');
     const res = await fetch(`/api/files/${numericId}`);
     if (res.ok) {
@@ -279,13 +286,39 @@ export default function Home() {
 
   return (
     <div className={`flex h-screen overflow-hidden ${bg}`}>
-      {/* Sidebar */}
-      <aside className={`flex w-64 shrink-0 flex-col border-r ${border} ${sidebarBg}`}>
+      {/* Mobile backdrop — open/close only */}
+      {sidebarOpen && (
+        <button
+          type="button"
+          aria-label="Close sidebar"
+          className="fixed inset-0 z-40 bg-black/40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar — same look when open; mobile = drawer, desktop = collapsible */}
+      <aside
+        className={`flex w-64 shrink-0 flex-col border-r ${border} ${sidebarBg}
+          fixed inset-y-0 left-0 z-50 transition-transform duration-200 ease-out
+          md:static md:z-auto md:transition-[width,margin,transform] md:duration-200
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+          ${sidebarCollapsed ? 'md:w-0 md:border-r-0 md:overflow-hidden md:translate-x-0' : 'md:w-64 md:translate-x-0'}
+        `}
+      >
         {/* Header */}
-        <div className={`border-b ${border} px-3 py-3`}>
+        <div className={`flex items-center justify-between border-b ${border} px-3 py-3`}>
           <span className={`text-xs font-semibold uppercase tracking-wider ${textMuted}`}>
             kenshi2k personal notes
           </span>
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(false)}
+            title="Close sidebar"
+            className={`rounded p-1 md:hidden ${textMuted} ${hoverBg}`}
+            aria-label="Close sidebar"
+          >
+            <XIcon size={14} />
+          </button>
         </div>
 
         {/* Actions */}
@@ -372,44 +405,79 @@ export default function Home() {
         {/* Footer */}
         <div className={`flex items-center justify-between border-t ${border} px-3 py-2`}>
           <span className={`text-xs ${textMuted}`}>{me?.username}</span>
-          <button
-            onClick={handleLogout}
-            title="Logout"
-            className={`rounded p-1 ${textMuted} ${hoverBg}`}
-          >
-            <LogOut size={14} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed(true)}
+              title="Collapse sidebar"
+              className={`hidden rounded p-1 md:inline-flex ${textMuted} ${hoverBg}`}
+              aria-label="Collapse sidebar"
+            >
+              <PanelLeftClose size={14} />
+            </button>
+            <button
+              onClick={handleLogout}
+              title="Logout"
+              className={`rounded p-1 ${textMuted} ${hoverBg}`}
+            >
+              <LogOut size={14} />
+            </button>
+          </div>
         </div>
       </aside>
 
       {/* Main panel */}
       <main className={`flex flex-1 flex-col overflow-hidden ${bg}`}>
         {/* Top bar */}
-        <div className={`flex shrink-0 items-center justify-between border-b ${border} px-6 py-2.5`}>
-          <h1 className={`flex items-center gap-2 text-sm font-medium ${textPrimary}`}>
-            {viewMode === 'files' && selectedFile && (
-              <>
-                <FileText size={15} className={textMuted} />
-                {selectedFile.name}
-              </>
+        <div className={`flex shrink-0 items-center justify-between border-b ${border} px-3 py-2.5 sm:px-6`}>
+          <div className="flex min-w-0 items-center gap-2">
+            {/* Mobile: open drawer */}
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              title="Open sidebar"
+              className={`rounded-md p-2 md:hidden ${textSecondary} ${hoverBg}`}
+              aria-label="Open sidebar"
+            >
+              <Menu size={18} />
+            </button>
+            {/* Desktop: expand when collapsed */}
+            {sidebarCollapsed && (
+              <button
+                type="button"
+                onClick={() => setSidebarCollapsed(false)}
+                title="Open sidebar"
+                className={`hidden rounded-md p-2 md:inline-flex ${textSecondary} ${hoverBg}`}
+                aria-label="Open sidebar"
+              >
+                <PanelLeft size={18} />
+              </button>
             )}
-            {viewMode === 'graph' && (
-              <>
-                <Network size={15} className="text-[#7f6df2]" />
-                Graph View
-              </>
-            )}
-            {viewMode === 'daily' && (
-              <>
-                <Calendar size={15} className="text-[#7f6df2]" />
-                Daily Notes
-              </>
-            )}
-            {viewMode === 'files' && !selectedFile && (
-              <span className={textMuted}>No file selected</span>
-            )}
-          </h1>
-          <div className="flex items-center gap-2">
+            <h1 className={`flex min-w-0 items-center gap-2 truncate text-sm font-medium ${textPrimary}`}>
+              {viewMode === 'files' && selectedFile && (
+                <>
+                  <FileText size={15} className={`shrink-0 ${textMuted}`} />
+                  <span className="truncate">{selectedFile.name}</span>
+                </>
+              )}
+              {viewMode === 'graph' && (
+                <>
+                  <Network size={15} className="shrink-0 text-[#7f6df2]" />
+                  Graph View
+                </>
+              )}
+              {viewMode === 'daily' && (
+                <>
+                  <Calendar size={15} className="shrink-0 text-[#7f6df2]" />
+                  Daily Notes
+                </>
+              )}
+              {viewMode === 'files' && !selectedFile && (
+                <span className={textMuted}>No file selected</span>
+              )}
+            </h1>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
             {viewMode === 'files' && selectedFile && !isEditing && (
               <>
                 {canWrite && (
