@@ -60,6 +60,11 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false); // mobile drawer
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // desktop collapse
 
+  const isMobileViewport = useCallback(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(max-width: 767px)').matches;
+  }, []);
+
   const loadTree = useCallback(async () => {
     const res = await fetch('/api/tree');
     if (res.ok) {
@@ -82,11 +87,27 @@ export default function Home() {
     })();
   }, [router, loadTree]);
 
+  // Mobile only: if no note selected on first load, open sidebar automatically.
+  // Desktop never auto-opens — user controls collapse/expand manually.
+  useEffect(() => {
+    if (loading) return;
+    if (!selectedFileId && isMobileViewport()) {
+      setSidebarOpen(true);
+    }
+    // Intentionally only after initial vault load — do not re-force open when user
+    // manually closes the drawer with no note selected.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
   async function handleSelectFile(fileId: string) {
     setSelectedFileId(fileId);
     setViewMode('files');
     setIsEditing(false);
-    setSidebarOpen(false); // close mobile drawer after pick
+    // Mobile only: auto-dismiss drawer after opening a note.
+    // Desktop stays under user control (sidebarCollapsed).
+    if (isMobileViewport()) {
+      setSidebarOpen(false);
+    }
     const numericId = fileId.replace('file-', '');
     const res = await fetch(`/api/files/${numericId}`);
     if (res.ok) {
